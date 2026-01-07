@@ -1,0 +1,10 @@
+{
+	"id": "daily-review-auto-open",
+	"name": "Daily Review Auto Open",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Automatically opens a random past diary entry each time you launch Obsidian.",
+	"author": "zack",
+	"authorUrl": "https://github.com/zack",
+	"isDesktopOnly": false
+}
