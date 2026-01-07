@@ -5,6 +5,6 @@
 	"minAppVersion": "0.15.0",
 	"description": "Automatically opens a random past diary entry each time you launch Obsidian.",
 	"author": "zack",
-	"authorUrl": "https://github.com/zack",
+	"authorUrl": "https://github.com/cold1243",
 	"isDesktopOnly": false
 }
