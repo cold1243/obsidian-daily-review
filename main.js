@@ -30,12 +30,25 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 var DEFAULT_SETTINGS = {
   diaryFolderPath: "\u65E5\u8BB0",
-  enabled: true
+  diaryFolderPaths: ["\u65E5\u8BB0"],
+  // 默认包含日记文件夹
+  enabled: true,
+  recentHistorySize: 3,
+  // 默认记住最近3篇日记
+  recentlyOpened: []
+  // 默认为空数组
 };
 var DailyReviewAutoOpenPlugin = class extends import_obsidian.Plugin {
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new DailyReviewSettingTab(this.app, this));
+    this.addCommand({
+      id: "open-random-diary",
+      name: "\u6253\u5F00\u968F\u673A\u65E5\u8BB0",
+      callback: () => {
+        this.openRandomDiary();
+      }
+    });
     this.app.workspace.onLayoutReady(() => {
       if (this.settings.enabled) {
         this.openRandomDiary();
@@ -48,33 +61,89 @@ var DailyReviewAutoOpenPlugin = class extends import_obsidian.Plugin {
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (this.settings.diaryFolderPaths.length === 1 && this.settings.diaryFolderPaths[0] === "\u65E5\u8BB0" && this.settings.diaryFolderPath !== "\u65E5\u8BB0") {
+      this.settings.diaryFolderPaths = [this.settings.diaryFolderPath];
+      await this.saveSettings();
+    }
   }
   async saveSettings() {
     await this.saveData(this.settings);
   }
   async openRandomDiary() {
-    const { diaryFolderPath } = this.settings;
-    const diaryFolder = this.app.vault.getAbstractFileByPath(diaryFolderPath);
-    if (!(diaryFolder instanceof import_obsidian.TFolder)) {
-      console.warn(`Diary folder not found: ${diaryFolderPath}`);
+    const { diaryFolderPaths, recentlyOpened, recentHistorySize } = this.settings;
+    if (!diaryFolderPaths || diaryFolderPaths.length === 0) {
+      console.warn("No diary folders configured");
       return;
     }
-    const markdownFiles = diaryFolder.children.filter(
+    const validFolders = [];
+    for (const path of diaryFolderPaths) {
+      const folder = this.app.vault.getAbstractFileByPath(path);
+      if (folder instanceof import_obsidian.TFolder) {
+        validFolders.push(folder);
+      } else {
+        console.warn(`Diary folder not found: ${path}`);
+      }
+    }
+    if (validFolders.length === 0) {
+      console.warn("No valid diary folders found");
+      return;
+    }
+    const selectedFolder = validFolders[Math.floor(Math.random() * validFolders.length)];
+    console.log(`Selected folder: ${selectedFolder.path}`);
+    const markdownFiles = selectedFolder.children.filter(
       (file) => file instanceof import_obsidian.TFile && file.extension === "md"
     );
     if (markdownFiles.length === 0) {
-      console.warn("No markdown files found in diary folder");
+      console.warn(`No markdown files found in folder: ${selectedFolder.path}`);
       return;
     }
-    const randomFile = markdownFiles[Math.floor(Math.random() * markdownFiles.length)];
+    const availableFiles = markdownFiles.filter(
+      (file) => !recentlyOpened.includes(file.path)
+    );
+    if (availableFiles.length === 0) {
+      console.log("All diaries have been opened recently, clearing history");
+      this.settings.recentlyOpened = [];
+    }
+    const finalFiles = availableFiles.length > 0 ? availableFiles : markdownFiles;
+    const randomFile = finalFiles[Math.floor(Math.random() * finalFiles.length)];
     await this.app.workspace.openLinkText(randomFile.path, "", true);
     console.log(`Opened random diary: ${randomFile.path}`);
+    this.addToRecentlyOpened(randomFile.path);
+  }
+  /**
+   * 将日记路径添加到最近打开列表
+   * 保持列表长度不超过 recentHistorySize
+   */
+  addToRecentlyOpened(filePath) {
+    const { recentlyOpened, recentHistorySize } = this.settings;
+    const index = recentlyOpened.indexOf(filePath);
+    if (index > -1) {
+      recentlyOpened.splice(index, 1);
+    }
+    recentlyOpened.unshift(filePath);
+    if (recentlyOpened.length > recentHistorySize) {
+      recentlyOpened.length = recentHistorySize;
+    }
+    this.saveSettings();
   }
 };
 var DailyReviewSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+  /**
+   * 获取根目录下的所有用户文件夹（排除系统文件夹）
+   * 按字母顺序排序
+   */
+  getRootFolders() {
+    const allFiles = this.app.vault.getAllLoadedFiles();
+    const rootFolders = allFiles.filter((file) => file instanceof import_obsidian.TFolder).filter((folder) => {
+      const isRootFolder = !folder.path.includes("/");
+      const isSystemFolder = folder.path.startsWith(".obsidian") || folder.path.startsWith(".trash") || folder.path.startsWith(".git");
+      return isRootFolder && !isSystemFolder;
+    }).map((folder) => folder.path).sort();
+    return rootFolders;
   }
   display() {
     const { containerEl } = this;
@@ -83,9 +152,47 @@ var DailyReviewSettingTab = class extends import_obsidian.PluginSettingTab {
       this.plugin.settings.enabled = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian.Setting(containerEl).setName("Diary folder path").setDesc("Path to the folder containing your diary entries").addText((text) => text.setPlaceholder("\u65E5\u8BB0").setValue(this.plugin.settings.diaryFolderPath).onChange(async (value) => {
-      this.plugin.settings.diaryFolderPath = value;
+    containerEl.createEl("h3", { text: "Diary folders" });
+    const rootFolders = this.getRootFolders();
+    if (rootFolders.length === 0) {
+      new import_obsidian.Setting(containerEl).setName("No folders found").setDesc("No user folders found in the root directory");
+    } else {
+      rootFolders.forEach((folderPath) => {
+        new import_obsidian.Setting(containerEl).setName(folderPath).setDesc("Include this folder in random selection").addToggle(
+          (toggle) => toggle.setValue(this.plugin.settings.diaryFolderPaths.includes(folderPath)).onChange(async (value) => {
+            if (value) {
+              if (!this.plugin.settings.diaryFolderPaths.includes(folderPath)) {
+                this.plugin.settings.diaryFolderPaths.push(folderPath);
+              }
+            } else {
+              this.plugin.settings.diaryFolderPaths = this.plugin.settings.diaryFolderPaths.filter((p) => p !== folderPath);
+            }
+            await this.plugin.saveSettings();
+          })
+        );
+      });
+    }
+    containerEl.createEl("h3", { text: "History settings" });
+    new import_obsidian.Setting(containerEl).setName("Recent history size").setDesc("Remember recently opened diaries to avoid repetition").addSlider((slider) => slider.setLimits(0, 15, 1).setValue(this.plugin.settings.recentHistorySize).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.recentHistorySize = value;
       await this.plugin.saveSettings();
     }));
+    if (this.plugin.settings.recentlyOpened.length > 0) {
+      new import_obsidian.Setting(containerEl).setName("Recently opened diaries").setDesc("Diaries opened in recent sessions").then((setting) => {
+        const historyText = this.plugin.settings.recentlyOpened.map((path) => {
+          const parts = path.split("/");
+          return parts[parts.length - 1];
+        }).join(", ");
+        setting.descEl.createEl("div", {
+          text: historyText || "No recent history",
+          cls: "setting-item-description"
+        });
+      });
+      new import_obsidian.Setting(containerEl).setName("Clear history").setDesc("Clear the history of recently opened diaries").addButton((button) => button.setButtonText("Clear").setClass("mod-warning").onClick(async () => {
+        this.plugin.settings.recentlyOpened = [];
+        await this.plugin.saveSettings();
+        this.display();
+      }));
+    }
   }
 };
