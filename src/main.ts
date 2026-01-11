@@ -30,22 +30,22 @@ export default class DailyReviewAutoOpenPlugin extends Plugin {
 			id: 'open-random-diary',
 			name: '打开随机日记',
 			callback: () => {
-				this.openRandomDiary();
+				void this.openRandomDiary();
 			}
 		});
 
 		// 在应用完全加载后打开随机日记
 		this.app.workspace.onLayoutReady(() => {
 			if (this.settings.enabled) {
-				this.openRandomDiary();
+				void this.openRandomDiary();
 			}
 		});
 
-		console.log('Daily Review Auto Open plugin loaded');
+		console.debug('Daily Review Auto Open plugin loaded');
 	}
 
 	onunload() {
-		console.log('Daily Review Auto Open plugin unloaded');
+		console.debug('Daily Review Auto Open plugin unloaded');
 	}
 
 	async loadSettings() {
@@ -93,7 +93,7 @@ export default class DailyReviewAutoOpenPlugin extends Plugin {
 
 		// 策略A：先随机选择一个文件夹
 		const selectedFolder = validFolders[Math.floor(Math.random() * validFolders.length)];
-		console.log(`Selected folder: ${selectedFolder.path}`);
+		console.debug(`Selected folder: ${selectedFolder.path}`);
 
 		// 从选中的文件夹中获取所有 markdown 文件
 		const markdownFiles = selectedFolder.children.filter((file): file is TFile =>
@@ -112,7 +112,7 @@ export default class DailyReviewAutoOpenPlugin extends Plugin {
 
 		// 如果所有文件都在最近打开列表中，则清空历史记录，重新开始
 		if (availableFiles.length === 0) {
-			console.log('All diaries have been opened recently, clearing history');
+			console.debug('All diaries have been opened recently, clearing history');
 			this.settings.recentlyOpened = [];
 		}
 
@@ -126,7 +126,7 @@ export default class DailyReviewAutoOpenPlugin extends Plugin {
 
 		// 打开文件
 		await this.app.workspace.openLinkText(randomFile.path, '', true);
-		console.log(`Opened random diary: ${randomFile.path}`);
+		console.debug(`Opened random diary: ${randomFile.path}`);
 
 		// 记录到最近打开列表
 		this.addToRecentlyOpened(randomFile.path);
@@ -136,7 +136,7 @@ export default class DailyReviewAutoOpenPlugin extends Plugin {
 	 * 将日记路径添加到最近打开列表
 	 * 保持列表长度不超过 recentHistorySize
 	 */
-	addToRecentlyOpened(filePath: string) {
+	async addToRecentlyOpened(filePath: string) {
 		const { recentlyOpened, recentHistorySize } = this.settings;
 
 		// 如果已经存在，先移除（避免重复）
@@ -154,7 +154,7 @@ export default class DailyReviewAutoOpenPlugin extends Plugin {
 		}
 
 		// 保存设置
-		this.saveSettings();
+		await this.saveSettings();
 	}
 }
 
@@ -172,6 +172,7 @@ class DailyReviewSettingTab extends PluginSettingTab {
 	 */
 	getRootFolders(): string[] {
 		const allFiles = this.app.vault.getAllLoadedFiles();
+		const configDir = this.app.vault.configDir;
 
 		// 过滤出文件夹，且只保留根目录（路径中不包含斜杠）
 		const rootFolders = allFiles
@@ -180,7 +181,7 @@ class DailyReviewSettingTab extends PluginSettingTab {
 				// 只保留根目录文件夹（路径不包含 /）
 				const isRootFolder = !folder.path.includes('/');
 				// 排除系统文件夹
-				const isSystemFolder = folder.path.startsWith('.obsidian') ||
+				const isSystemFolder = folder.path.startsWith(configDir) ||
 				                       folder.path.startsWith('.trash') ||
 				                       folder.path.startsWith('.git');
 				return isRootFolder && !isSystemFolder;
@@ -207,7 +208,9 @@ class DailyReviewSettingTab extends PluginSettingTab {
 				}));
 
 		// ========== 多文件夹管理 ==========
-		containerEl.createEl('h3', { text: 'Diary folders' });
+		new Setting(containerEl)
+			.setName('Diary folders')
+			.setHeading();
 
 		// 获取根目录文件夹列表
 		const rootFolders = this.getRootFolders();
@@ -243,7 +246,9 @@ class DailyReviewSettingTab extends PluginSettingTab {
 		}
 
 		// ========== 历史记录设置 ==========
-		containerEl.createEl('h3', { text: 'History settings' });
+		new Setting(containerEl)
+			.setName('History settings')
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName('Recent history size')

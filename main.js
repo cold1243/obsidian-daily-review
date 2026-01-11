@@ -46,18 +46,18 @@ var DailyReviewAutoOpenPlugin = class extends import_obsidian.Plugin {
       id: "open-random-diary",
       name: "\u6253\u5F00\u968F\u673A\u65E5\u8BB0",
       callback: () => {
-        this.openRandomDiary();
+        void this.openRandomDiary();
       }
     });
     this.app.workspace.onLayoutReady(() => {
       if (this.settings.enabled) {
-        this.openRandomDiary();
+        void this.openRandomDiary();
       }
     });
-    console.log("Daily Review Auto Open plugin loaded");
+    console.debug("Daily Review Auto Open plugin loaded");
   }
   onunload() {
-    console.log("Daily Review Auto Open plugin unloaded");
+    console.debug("Daily Review Auto Open plugin unloaded");
   }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -89,7 +89,7 @@ var DailyReviewAutoOpenPlugin = class extends import_obsidian.Plugin {
       return;
     }
     const selectedFolder = validFolders[Math.floor(Math.random() * validFolders.length)];
-    console.log(`Selected folder: ${selectedFolder.path}`);
+    console.debug(`Selected folder: ${selectedFolder.path}`);
     const markdownFiles = selectedFolder.children.filter(
       (file) => file instanceof import_obsidian.TFile && file.extension === "md"
     );
@@ -101,20 +101,20 @@ var DailyReviewAutoOpenPlugin = class extends import_obsidian.Plugin {
       (file) => !recentlyOpened.includes(file.path)
     );
     if (availableFiles.length === 0) {
-      console.log("All diaries have been opened recently, clearing history");
+      console.debug("All diaries have been opened recently, clearing history");
       this.settings.recentlyOpened = [];
     }
     const finalFiles = availableFiles.length > 0 ? availableFiles : markdownFiles;
     const randomFile = finalFiles[Math.floor(Math.random() * finalFiles.length)];
     await this.app.workspace.openLinkText(randomFile.path, "", true);
-    console.log(`Opened random diary: ${randomFile.path}`);
+    console.debug(`Opened random diary: ${randomFile.path}`);
     this.addToRecentlyOpened(randomFile.path);
   }
   /**
    * 将日记路径添加到最近打开列表
    * 保持列表长度不超过 recentHistorySize
    */
-  addToRecentlyOpened(filePath) {
+  async addToRecentlyOpened(filePath) {
     const { recentlyOpened, recentHistorySize } = this.settings;
     const index = recentlyOpened.indexOf(filePath);
     if (index > -1) {
@@ -124,7 +124,7 @@ var DailyReviewAutoOpenPlugin = class extends import_obsidian.Plugin {
     if (recentlyOpened.length > recentHistorySize) {
       recentlyOpened.length = recentHistorySize;
     }
-    this.saveSettings();
+    await this.saveSettings();
   }
 };
 var DailyReviewSettingTab = class extends import_obsidian.PluginSettingTab {
@@ -138,9 +138,10 @@ var DailyReviewSettingTab = class extends import_obsidian.PluginSettingTab {
    */
   getRootFolders() {
     const allFiles = this.app.vault.getAllLoadedFiles();
+    const configDir = this.app.vault.configDir;
     const rootFolders = allFiles.filter((file) => file instanceof import_obsidian.TFolder).filter((folder) => {
       const isRootFolder = !folder.path.includes("/");
-      const isSystemFolder = folder.path.startsWith(".obsidian") || folder.path.startsWith(".trash") || folder.path.startsWith(".git");
+      const isSystemFolder = folder.path.startsWith(configDir) || folder.path.startsWith(".trash") || folder.path.startsWith(".git");
       return isRootFolder && !isSystemFolder;
     }).map((folder) => folder.path).sort();
     return rootFolders;
@@ -152,7 +153,7 @@ var DailyReviewSettingTab = class extends import_obsidian.PluginSettingTab {
       this.plugin.settings.enabled = value;
       await this.plugin.saveSettings();
     }));
-    containerEl.createEl("h3", { text: "Diary folders" });
+    new import_obsidian.Setting(containerEl).setName("Diary folders").setHeading();
     const rootFolders = this.getRootFolders();
     if (rootFolders.length === 0) {
       new import_obsidian.Setting(containerEl).setName("No folders found").setDesc("No user folders found in the root directory");
@@ -172,7 +173,7 @@ var DailyReviewSettingTab = class extends import_obsidian.PluginSettingTab {
         );
       });
     }
-    containerEl.createEl("h3", { text: "History settings" });
+    new import_obsidian.Setting(containerEl).setName("History settings").setHeading();
     new import_obsidian.Setting(containerEl).setName("Recent history size").setDesc("Remember recently opened diaries to avoid repetition").addSlider((slider) => slider.setLimits(0, 15, 1).setValue(this.plugin.settings.recentHistorySize).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.recentHistorySize = value;
       await this.plugin.saveSettings();
