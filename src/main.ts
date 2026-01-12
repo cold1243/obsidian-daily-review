@@ -129,7 +129,7 @@ export default class DailyReviewAutoOpenPlugin extends Plugin {
 		console.debug(`Opened random diary: ${randomFile.path}`);
 
 		// 记录到最近打开列表
-		this.addToRecentlyOpened(randomFile.path);
+		await this.addToRecentlyOpened(randomFile.path);
 	}
 
 	/**
@@ -247,7 +247,7 @@ class DailyReviewSettingTab extends PluginSettingTab {
 
 		// ========== 历史记录设置 ==========
 		new Setting(containerEl)
-			.setName('History settings')
+			.setName('History')
 			.setHeading();
 
 		new Setting(containerEl)

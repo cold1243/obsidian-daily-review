@@ -108,7 +108,7 @@ var DailyReviewAutoOpenPlugin = class extends import_obsidian.Plugin {
     const randomFile = finalFiles[Math.floor(Math.random() * finalFiles.length)];
     await this.app.workspace.openLinkText(randomFile.path, "", true);
     console.debug(`Opened random diary: ${randomFile.path}`);
-    this.addToRecentlyOpened(randomFile.path);
+    await this.addToRecentlyOpened(randomFile.path);
   }
   /**
    * 将日记路径添加到最近打开列表
@@ -173,7 +173,7 @@ var DailyReviewSettingTab = class extends import_obsidian.PluginSettingTab {
         );
       });
     }
-    new import_obsidian.Setting(containerEl).setName("History settings").setHeading();
+    new import_obsidian.Setting(containerEl).setName("History").setHeading();
     new import_obsidian.Setting(containerEl).setName("Recent history size").setDesc("Remember recently opened diaries to avoid repetition").addSlider((slider) => slider.setLimits(0, 15, 1).setValue(this.plugin.settings.recentHistorySize).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.recentHistorySize = value;
       await this.plugin.saveSettings();
